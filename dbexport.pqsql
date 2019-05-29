@@ -1,0 +1,1278 @@
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 10.5
+-- Dumped by pg_dump version 10.5
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: bikesharing; Type: SCHEMA; Schema: -; Owner: postgres
+--
+
+CREATE SCHEMA bikesharing;
+
+
+ALTER SCHEMA bikesharing OWNER TO postgres;
+
+--
+-- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
+--
+
+CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+
+
+--
+-- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
+--
+
+COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
+
+
+--
+-- Name: buat_laporan(); Type: FUNCTION; Schema: bikesharing; Owner: db2018044
+--
+
+CREATE FUNCTION bikesharing.buat_laporan() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+if (TG_OP='UPDATE') then 
+if sum(datetime_kembali-datetime_pinjam) > 24 then
+insert into laporan values(new.id_laporan,new.no_kartu_anggota, new.datetime_pinjam,new.nomor_sepeda, new.id_stasiun, new.status);
+end if;
+return new;
+end if;
+end;
+$$;
+
+
+ALTER FUNCTION bikesharing.buat_laporan() OWNER TO db2018044;
+
+--
+-- Name: buat_tp(); Type: FUNCTION; Schema: bikesharing; Owner: db2018044
+--
+
+CREATE FUNCTION bikesharing.buat_tp() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin
+if (TG_OP='UPDATE') then 
+update peminjaman set datetime_kembali=new.datetime_kembali;
+insert into transaksi_khusus_peminjaman values(new.no_kartu_anggota, new.datetime,new.no_kartu_peminjam,new.datetime_pinjam,new.no_sepeda,new.id_stasiun);
+end if;
+return new;
+end;
+$$;
+
+
+ALTER FUNCTION bikesharing.buat_tp() OWNER TO db2018044;
+
+--
+-- Name: jumlah_denda(); Type: FUNCTION; Schema: bikesharing; Owner: db2018044
+--
+
+CREATE FUNCTION bikesharing.jumlah_denda() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+begin 
+if (TG_OP='UPDATE') then
+if sum(new.datetime_kembali-old.datetime_pinjam) > 10 then
+new.jam=sum(new.datetime_kembali-old.datetime_pinjam)-10;
+update peminjaman set denda= 50000*new.jam;
+elseif sum(datetime_kembali-datetime_pinjam) > 24 then
+update peminjaman set denda=3000000;
+end if;
+return new;
+end if;
+end;
+$$;
+
+
+ALTER FUNCTION bikesharing.jumlah_denda() OWNER TO db2018044;
+
+SET default_tablespace = '';
+
+SET default_with_oids = false;
+
+--
+-- Name: acara; Type: TABLE; Schema: bikesharing; Owner: postgres
+--
+
+CREATE TABLE bikesharing.acara (
+    id_acara character varying(10) NOT NULL,
+    judul character varying(100) NOT NULL,
+    deskripsi text,
+    tgl_mulai date NOT NULL,
+    tgl_akhir date NOT NULL,
+    is_free boolean NOT NULL
+);
+
+
+ALTER TABLE bikesharing.acara OWNER TO postgres;
+
+--
+-- Name: acara_stasiun; Type: TABLE; Schema: bikesharing; Owner: postgres
+--
+
+CREATE TABLE bikesharing.acara_stasiun (
+    id_stasiun character varying(10) NOT NULL,
+    id_acara character varying(10) NOT NULL
+);
+
+
+ALTER TABLE bikesharing.acara_stasiun OWNER TO postgres;
+
+--
+-- Name: anggota; Type: TABLE; Schema: bikesharing; Owner: postgres
+--
+
+CREATE TABLE bikesharing.anggota (
+    no_kartu character varying(10) NOT NULL,
+    saldo real,
+    points integer,
+    ktp character varying(20) NOT NULL
+);
+
+
+ALTER TABLE bikesharing.anggota OWNER TO postgres;
+
+--
+-- Name: laporan; Type: TABLE; Schema: bikesharing; Owner: postgres
+--
+
+CREATE TABLE bikesharing.laporan (
+    id_laporan character varying(10) NOT NULL,
+    no_kartu_anggota character varying(10) NOT NULL,
+    datetime_pinjam timestamp without time zone NOT NULL,
+    nomor_sepeda character varying(10) NOT NULL,
+    id_stasiun character varying(10) NOT NULL,
+    status character varying(20) NOT NULL
+);
+
+
+ALTER TABLE bikesharing.laporan OWNER TO postgres;
+
+--
+-- Name: peminjaman; Type: TABLE; Schema: bikesharing; Owner: postgres
+--
+
+CREATE TABLE bikesharing.peminjaman (
+    no_kartu_anggota character varying(10) NOT NULL,
+    datetime_pinjam timestamp without time zone NOT NULL,
+    nomor_sepeda character varying(10) NOT NULL,
+    id_stasiun character varying(10) NOT NULL,
+    datetime_kembali timestamp without time zone,
+    biaya real,
+    denda real,
+    jam integer
+);
+
+
+ALTER TABLE bikesharing.peminjaman OWNER TO postgres;
+
+--
+-- Name: penugasan; Type: TABLE; Schema: bikesharing; Owner: postgres
+--
+
+CREATE TABLE bikesharing.penugasan (
+    ktp character varying(20) NOT NULL,
+    start_datetime timestamp without time zone NOT NULL,
+    id_stasiun character varying(10) NOT NULL,
+    end_datetime timestamp without time zone NOT NULL
+);
+
+
+ALTER TABLE bikesharing.penugasan OWNER TO postgres;
+
+--
+-- Name: person; Type: TABLE; Schema: bikesharing; Owner: postgres
+--
+
+CREATE TABLE bikesharing.person (
+    ktp character varying(20) NOT NULL,
+    email character varying(50) NOT NULL,
+    nama character varying(50) NOT NULL,
+    alamat text,
+    tgl_lahir date NOT NULL,
+    no_telp character varying(20)
+);
+
+
+ALTER TABLE bikesharing.person OWNER TO postgres;
+
+--
+-- Name: petugas; Type: TABLE; Schema: bikesharing; Owner: postgres
+--
+
+CREATE TABLE bikesharing.petugas (
+    ktp character varying(20) NOT NULL,
+    gaji real NOT NULL
+);
+
+
+ALTER TABLE bikesharing.petugas OWNER TO postgres;
+
+--
+-- Name: sepeda; Type: TABLE; Schema: bikesharing; Owner: postgres
+--
+
+CREATE TABLE bikesharing.sepeda (
+    nomor character varying(10) NOT NULL,
+    merk character varying(10) NOT NULL,
+    jenis character varying(50) NOT NULL,
+    status boolean NOT NULL,
+    id_stasiun character varying(10) NOT NULL,
+    no_kartu_penyumbang character varying(20) NOT NULL
+);
+
+
+ALTER TABLE bikesharing.sepeda OWNER TO postgres;
+
+--
+-- Name: stasiun; Type: TABLE; Schema: bikesharing; Owner: postgres
+--
+
+CREATE TABLE bikesharing.stasiun (
+    id_stasiun character varying(10) NOT NULL,
+    alamat text NOT NULL,
+    lat real,
+    long real,
+    nama character varying(50) NOT NULL
+);
+
+
+ALTER TABLE bikesharing.stasiun OWNER TO postgres;
+
+--
+-- Name: transaksi; Type: TABLE; Schema: bikesharing; Owner: postgres
+--
+
+CREATE TABLE bikesharing.transaksi (
+    no_kartu_anggota character varying(10) NOT NULL,
+    date_time timestamp without time zone NOT NULL,
+    jenis character varying(20) NOT NULL,
+    nominal real NOT NULL
+);
+
+
+ALTER TABLE bikesharing.transaksi OWNER TO postgres;
+
+--
+-- Name: transaksi_khusus_peminjaman; Type: TABLE; Schema: bikesharing; Owner: db2018044
+--
+
+CREATE TABLE bikesharing.transaksi_khusus_peminjaman (
+    no_kartu_anggota character varying(10) NOT NULL,
+    date_time timestamp without time zone NOT NULL,
+    no_kartu_peminjam character varying(10) NOT NULL,
+    datetime_pinjam timestamp without time zone NOT NULL,
+    no_sepeda character varying(10) NOT NULL,
+    id_stasiun character varying(10) NOT NULL
+);
+
+
+ALTER TABLE bikesharing.transaksi_khusus_peminjaman OWNER TO db2018044;
+
+--
+-- Name: voucher; Type: TABLE; Schema: bikesharing; Owner: postgres
+--
+
+CREATE TABLE bikesharing.voucher (
+    id_voucher character varying(10) NOT NULL,
+    nama character varying(255) NOT NULL,
+    kategori character varying(255) NOT NULL,
+    nilai_poin real NOT NULL,
+    deskripsi text,
+    no_kartu_anggota character varying(10) NOT NULL
+);
+
+
+ALTER TABLE bikesharing.voucher OWNER TO postgres;
+
+--
+-- Data for Name: acara; Type: TABLE DATA; Schema: bikesharing; Owner: postgres
+--
+
+COPY bikesharing.acara (id_acara, judul, deskripsi, tgl_mulai, tgl_akhir, is_free) FROM stdin;
+ac01	Selamat Datang Anggota BIKESHARING	acara ini adalah bentuk apresiasi pemerintah terhadap para anggota yang telah dengan baik menggunakan jasa dari BIKESHARING	2015-09-08	2015-09-13	t
+ac02	1 Tahun BIKESHARING	Acara ini adalah peringatan 1 tahun dari layanan BIKESHARING	2016-03-11	2016-03-13	f
+ac03	BIKESHARING Donate	Mari berdonasi untuk membantu saudara kita yang sedang ditimpa bencana	2016-12-12	2016-12-12	t
+ac04	BIKESHARING Act	Ini adalah acara lanjutan dari BIKESHARING Donate, mari beraksi untuk membantu	2017-01-02	2017-01-02	t
+ac05	BIKESHARING Concert	Acara yang akan memanjakan para anggota BIKESHARING yang hadir dengan penampilan penyanyi-penyanyi terkenal	2017-01-12	2017-01-15	f
+ac06	BIKESHARING Race	Sebuah perlombaan yang diadakan BIKESHARING untuk para Anggota dengan hadiah puluhan juta rupiah, come and join us	2017-02-02	2017-02-02	f
+ac07	BIKESAHRING Kuliner	Memperingati hari jadi kota Depok yang ke-150 tahun, BIKESHARING akan memperkenalkan hidangan khas dari berbagai daerah di Indonesia	2017-02-26	2017-02-26	t
+ac08	BIKESAHRING Ney Year	memperingati masuknya tahun baru 2017, BIKESHARING mengajak para anggota untuk datang dan menyaksikan atraksi kembang api sebagai simbol pergantian tahun baru	2016-12-31	2017-01-01	f
+ac09	BIKESAHRING For Health	BIKESHARING Bekerjasama dengan organisasi Palang Merah Indonesia, mengajak para anggota untuk ikut mendonorkan darahnya, agar bank darah tidak kehabisan	2017-04-23	2017-04-30	t
+ac10	Ulang Tahun BIKESAHRING	Merayakan hari jadi BIKESHARING, bekerjasama dengan pemerintah kota Depok mengajak anggota dan masyarakat umum untuk mogok menyebar polusi dengan bersepeda	2017-03-11	2017-03-11	t
+\.
+
+
+--
+-- Data for Name: acara_stasiun; Type: TABLE DATA; Schema: bikesharing; Owner: postgres
+--
+
+COPY bikesharing.acara_stasiun (id_stasiun, id_acara) FROM stdin;
+st01	ac01
+st02	ac02
+st03	ac03
+st04	ac04
+st05	ac05
+st06	ac06
+st07	ac07
+st08	ac08
+st09	ac09
+st10	ac10
+st11	ac01
+st12	ac02
+st13	ac03
+st14	ac04
+st15	ac05
+st16	ac06
+st17	ac07
+st18	ac08
+st19	ac09
+st20	ac10
+\.
+
+
+--
+-- Data for Name: anggota; Type: TABLE DATA; Schema: bikesharing; Owner: postgres
+--
+
+COPY bikesharing.anggota (no_kartu, saldo, points, ktp) FROM stdin;
+Ang01	900000	5000	710199502032017
+Ang02	900000	5000	710198310062017
+Ang03	900000	5000	710198810062017
+Ang04	900000	5000	710198702032017
+Ang05	900000	5000	710198601022017
+Ang06	30000	120	710195623012017
+Ang07	30000	125	710199712092017
+Ang08	30000	175	710199204072017
+Ang09	30000	200	720198023042017
+Ang10	30000	250	720198806052017
+Ang11	20000	139	720199631062017
+Ang12	20000	130	720198707042017
+Ang13	20000	132	720198405042017
+Ang14	20000	300	720199106112017
+Ang15	20000	350	720199302092017
+Ang16	35000	450	720199218082017
+Ang17	35000	450	730199303072017
+Ang18	35000	650	730199608082016
+Ang19	35000	138	730199202052016
+Ang20	35000	24	730199515012016
+Ang21	900000	5000	730199413022016
+Ang22	900000	5000	730198930072016
+Ang23	900000	5000	730199008072016
+Ang24	900000	5000	740199008072014
+Ang25	900000	5000	740199909022015
+Ang26	40000	450	740199412102015
+Ang27	40000	500	740199004052017
+Ang28	40000	234	740199007042014
+Ang29	40000	389	740198910092015
+Ang30	40000	267	740199209112016
+Ang31	900000	5000	740199107032015
+Ang32	900000	5000	740199308122014
+Ang33	900000	5000	750199312032015
+Ang34	900000	5000	750198123092014
+Ang35	900000	5000	750199212122016
+Ang36	36000	189	750199321112015
+Ang37	36000	178	750199507032017
+Ang38	36000	180	750198709092016
+Ang39	36000	189	750199601062017
+Ang40	36000	2890	750199017122015
+Ang41	900000	5000	750199214052016
+Ang42	900000	5000	760199423122015
+Ang43	900000	5000	760199203032014
+Ang44	900000	5000	760199109102015
+Ang45	900000	5000	760198904032016
+Ang46	28000	320	760198805062016
+Ang47	28000	320	760198709102017
+Ang48	28000	120	760198008082016
+Ang49	28000	267	770198706052017
+Ang50	28000	289	770198609032016
+Ang51	56000	275	770199302062015
+Ang52	56000	290	770199901012017
+Ang53	56000	337	770199523042016
+Ang54	56000	342	770199024052015
+Ang55	56000	89	770199431062016
+Ang56	89000	99	770198509072015
+Ang57	89000	100	770198402052014
+Ang58	89000	129	780199203052016
+Ang59	89000	567	780198208092014
+Ang60	89000	234	780198301062014
+Ang61	70000	89	790199126092014
+Ang62	70000	678	790198112112014
+Ang63	70000	650	790198730122015
+Ang64	70000	345	790198829122015
+Ang65	70000	128	790199224062016
+Ang66	65000	128	790199308102016
+Ang67	65000	367	790199002032016
+Ang68	65000	892	790198920032014
+Ang69	65000	900	790198713042015
+Ang70	65000	675	790198512072016
+\.
+
+
+--
+-- Data for Name: laporan; Type: TABLE DATA; Schema: bikesharing; Owner: postgres
+--
+
+COPY bikesharing.laporan (id_laporan, no_kartu_anggota, datetime_pinjam, nomor_sepeda, id_stasiun, status) FROM stdin;
+l01	Ang52	2015-11-09 10:00:00	s01	st01	selesai
+l02	Ang51	2015-09-15 10:00:00	s02	st02	selesai
+l03	Ang38	2015-11-09 10:00:00	s03	st03	selesai
+l04	Ang53	2015-09-24 10:00:00	s04	st04	selesai
+l05	Ang54	2015-09-26 10:00:00	s05	st05	selesai
+l06	Ang47	2015-09-29 10:00:00	s06	st06	selesai
+l07	Ang48	2015-09-30 10:00:00	s07	st07	selesai
+l08	Ang58	2015-10-08 10:00:00	s08	st08	selesai
+l09	Ang42	2015-10-08 10:00:00	s09	st09	selesai
+l10	Ang59	2015-10-15 10:00:00	s10	st10	selesai
+l11	Ang66	2015-10-15 10:00:01	s11	st11	selesai
+\.
+
+
+--
+-- Data for Name: peminjaman; Type: TABLE DATA; Schema: bikesharing; Owner: postgres
+--
+
+COPY bikesharing.peminjaman (no_kartu_anggota, datetime_pinjam, nomor_sepeda, id_stasiun, datetime_kembali, biaya, denda, jam) FROM stdin;
+Ang33	2015-10-09 12:30:00	s18	st18	2015-10-09 17:00:00	5000	\N	5
+Ang04	2015-12-09 08:30:00	s04	st04	2015-12-09 19:00:00	10000	\N	\N
+Ang05	2015-10-09 08:30:00	s05	st05	2015-10-09 20:00:00	10000	\N	\N
+Ang06	2015-10-09 08:30:00	s06	st06	2015-10-09 21:00:00	10000	\N	\N
+Ang07	2015-11-10 08:30:00	s07	st07	2015-11-10 19:00:00	10000	\N	\N
+Ang08	2015-11-10 08:30:00	s08	st08	2015-11-10 21:00:00	10000	\N	\N
+Ang09	2015-10-11 08:30:00	s09	st09	2015-10-11 19:00:00	10000	\N	\N
+Ang10	2015-10-10 08:30:00	s10	st10	2015-10-10 20:00:00	10000	\N	\N
+Ang26	2015-09-24 08:30:00	s11	st11	2015-09-24 21:00:00	10000	\N	\N
+Ang27	2015-09-20 08:30:00	s12	st12	2015-09-20 19:00:00	10000	\N	\N
+Ang28	2015-09-20 08:30:00	s13	st13	2015-09-20 21:00:00	10000	\N	\N
+Ang29	2015-09-23 08:30:00	s14	st14	2015-09-23 19:00:00	10000	\N	\N
+Ang30	2015-09-28 08:30:00	s15	st15	2015-09-28 20:00:00	10000	\N	\N
+Ang31	2015-10-11 08:30:00	s16	st16	2015-10-11 21:00:00	10000	\N	\N
+Ang32	2015-10-09 08:30:00	s17	st17	2015-10-09 19:00:00	10000	\N	\N
+Ang34	2015-10-09 12:30:00	s19	st19	2015-10-09 19:00:00	5000	\N	\N
+Ang35	2015-10-09 12:30:00	s20	st20	2015-10-09 20:00:00	5000	\N	\N
+Ang36	2015-10-09 12:30:00	s21	st01	2015-10-09 19:00:00	5000	\N	\N
+Ang37	2015-10-09 12:30:00	s22	st02	2015-10-09 19:00:00	5000	\N	\N
+Ang38	2015-10-09 12:30:00	s23	st03	2015-10-09 17:00:00	5000	\N	\N
+Ang39	2015-10-09 12:30:00	s24	st04	2015-10-09 19:00:00	5000	\N	\N
+Ang40	2015-10-09 12:30:00	s25	st05	2015-10-09 19:00:00	5000	\N	\N
+Ang46	2015-10-09 12:30:00	s26	st06	2015-10-09 20:00:00	5000	\N	\N
+Ang47	2015-10-09 12:30:00	s27	st07	2015-10-09 20:00:00	5000	\N	\N
+Ang48	2015-09-17 10:30:00	s28	st08	2015-09-17 17:00:00	5000	\N	\N
+Ang49	2015-09-17 10:30:00	s29	st09	2015-09-17 18:00:00	5000	\N	\N
+Ang50	2015-09-17 10:30:00	s30	st10	2015-09-17 16:00:00	3000	\N	\N
+Ang41	2015-09-17 10:00:00	s31	st11	2015-09-17 16:00:00	3000	\N	\N
+Ang42	2015-09-17 10:00:00	s32	st12	2015-09-17 13:00:00	3000	\N	\N
+Ang43	2015-09-17 10:00:00	s33	st13	2015-09-17 14:00:00	3000	\N	\N
+Ang44	2015-09-17 10:00:00	s34	st14	2015-09-17 14:00:00	3000	\N	\N
+Ang45	2015-09-17 10:00:00	s35	st15	2015-09-17 15:00:00	3000	\N	\N
+Ang08	2015-09-17 10:00:00	s36	st16	2015-09-17 15:00:00	3000	\N	\N
+Ang09	2015-09-24 08:00:00	s37	st17	2015-09-24 11:00:00	3000	\N	\N
+Ang10	2015-09-24 08:00:00	s38	st18	2015-09-24 13:00:00	3000	\N	\N
+Ang11	2015-09-24 08:00:00	s39	st19	2015-09-24 11:00:00	3000	\N	\N
+Ang12	2015-09-24 08:00:00	s40	st20	2015-09-24 12:00:00	3000	\N	\N
+Ang13	2015-09-24 08:00:00	s41	st06	2015-09-24 14:00:00	3000	\N	\N
+Ang14	2015-09-24 08:00:00	s42	st07	2015-09-24 10:00:00	2000	\N	\N
+Ang15	2015-09-24 08:00:00	s43	st08	2015-09-24 13:00:00	2000	\N	\N
+Ang16	2015-09-24 08:00:00	s44	st09	2015-09-24 13:00:00	2000	\N	\N
+Ang17	2015-09-24 08:00:00	s45	st10	2015-09-24 10:00:00	2000	\N	\N
+Ang18	2015-09-24 08:00:00	s46	st11	2015-09-24 13:00:00	2000	\N	\N
+Ang19	2015-09-24 08:00:00	s47	st12	2015-09-24 10:00:00	2000	\N	\N
+Ang24	2015-09-24 08:00:00	s48	st13	2015-09-24 11:00:00	2000	\N	\N
+Ang25	2015-09-24 08:00:00	s49	st14	2015-09-24 13:00:00	2000	\N	\N
+Ang26	2015-09-24 08:00:00	s50	st15	2015-09-24 11:00:00	2000	\N	\N
+Ang52	2015-11-09 10:00:00	s01	st01	2015-11-10 10:00:00	5000	\N	\N
+Ang51	2015-09-15 10:00:00	s02	st02	2015-09-17 10:00:00	5000	\N	\N
+Ang38	2015-11-09 10:00:00	s03	st03	2015-11-10 10:00:00	5000	\N	\N
+Ang53	2015-09-24 10:00:00	s04	st04	2015-09-26 10:00:00	5000	\N	\N
+Ang54	2015-09-26 10:00:00	s05	st05	2015-09-28 10:00:00	5000	\N	\N
+Ang47	2015-09-29 10:00:00	s06	st06	2015-10-01 10:00:00	5000	\N	\N
+Ang48	2015-09-30 10:00:00	s07	st07	2015-10-01 10:00:00	5000	\N	\N
+Ang58	2015-10-08 10:00:00	s08	st08	2015-10-09 10:00:00	5000	\N	\N
+Ang42	2015-10-08 10:00:00	s09	st09	2015-10-09 10:00:00	5000	\N	\N
+Ang59	2015-10-15 10:00:00	s10	st10	2015-10-16 10:00:00	5000	\N	\N
+Ang66	2015-10-15 10:00:01	s11	st11	2015-10-16 10:00:01	5000	\N	\N
+Ang03	2015-11-09 08:30:00	s03	st03	2015-11-09 21:30:00	10000	\N	\N
+Ang02	2015-10-09 08:30:00	s02	st02	2015-10-09 19:30:00	10000	\N	11
+Ang01	2015-10-09 08:30:00	s01	st01	2015-10-09 20:30:00	10000	100000	12
+\.
+
+
+--
+-- Data for Name: penugasan; Type: TABLE DATA; Schema: bikesharing; Owner: postgres
+--
+
+COPY bikesharing.penugasan (ktp, start_datetime, id_stasiun, end_datetime) FROM stdin;
+710199508032017	2015-08-09 08:00:00	st01	2020-08-09 08:00:00
+710199023122017	2015-08-09 08:00:00	st02	2020-08-09 08:00:00
+720199725122017	2015-08-09 08:00:00	st03	2020-08-09 08:00:00
+720199030052017	2015-08-09 08:00:00	st04	2020-08-09 08:00:00
+720198107102017	2015-08-09 08:00:00	st05	2020-08-09 08:00:00
+730198928032015	2015-08-09 08:00:00	st06	2020-08-09 08:00:00
+730199004092016	2015-08-09 08:00:00	st07	2020-08-09 08:00:00
+730199427012016	2015-08-09 08:00:00	st08	2020-08-09 08:00:00
+730199305062016	2015-08-09 08:00:00	st09	2020-08-09 08:00:00
+740198902032015	2015-08-09 08:00:00	st10	2020-08-09 08:00:00
+740199004052016	2015-08-09 08:00:00	st11	2020-08-09 08:00:00
+750199723042016	2015-08-09 08:00:00	st12	2020-08-09 08:00:00
+750198310062015	2015-08-09 08:00:00	st13	2020-08-09 08:00:00
+760199802032016	2015-08-09 08:00:00	st14	2020-08-09 08:00:00
+760198905062016	2015-08-09 08:00:00	st15	2020-08-09 08:00:00
+760197809092014	2015-08-09 08:00:00	st16	2020-08-09 08:00:00
+760199303102017	2015-08-09 08:00:00	st17	2020-08-09 08:00:00
+760199708122015	2015-08-09 08:00:00	st18	2020-08-09 08:00:00
+770199612122017	2015-08-09 08:00:00	st19	2020-08-09 08:00:00
+780199209032015	2015-08-09 08:00:00	st20	2020-08-09 08:00:00
+780199320022016	2016-01-03 08:00:00	st01	2021-08-09 08:00:00
+780199214042016	2016-01-03 08:00:00	st02	2021-08-09 08:00:00
+780199717082017	2016-01-03 08:00:00	st03	2021-08-09 08:00:00
+780199506102015	2016-01-03 08:00:00	st04	2021-08-09 08:00:00
+780198506052014	2016-01-03 08:00:00	st05	2021-08-09 08:00:00
+780199010012015	2016-01-03 08:00:00	st06	2021-08-09 08:00:00
+780199320082014	2016-01-03 08:00:00	st07	2021-08-09 08:00:00
+790199221032016	2016-01-03 08:00:00	st08	2021-08-09 08:00:00
+790199524052016	2016-01-03 08:00:00	st09	2021-08-09 08:00:00
+790199220052016	2016-01-03 08:00:00	st10	2021-08-09 08:00:00
+\.
+
+
+--
+-- Data for Name: person; Type: TABLE DATA; Schema: bikesharing; Owner: postgres
+--
+
+COPY bikesharing.person (ktp, email, nama, alamat, tgl_lahir, no_telp) FROM stdin;
+710199508032017	muhammad.maksum@ui.ac.id	Muhammad Maksum	Jl. Kebangkitan no.10	1995-08-03	089087098012
+710199502032017	andi.intan@ui.ac.id	Andi Intan	Jl. Kebangkitan no.11	1995-02-03	089086098013
+710198310062017	nada.manarnuha@ui.ac.id	Nada Manarnuha	Jl. Kasuari no.34	1983-10-06	089471481347
+710198810062017	indah.utami@ui.ac.id	Indah Utami	Jl. Kenanga no.12	1988-10-06	081212567890
+710198702032017	noverina.noverina@ui.ac.id	Noverina 	Jl. Gotong Royong no.8	1987-02-03	081345789012
+710198601022017	putri.setiawan@ui.ac.id	Putri Setiawan	Jl. Pattimura no.18	1986-01-02	081346782109
+710195623012017	muhammad.fauzi@ui.ac.id	Muhammad Fauzi	Jl. Imam Bonjol no.43	1956-03-01	083333789012
+710199712092017	imam.fauzan@ui.ac.id	Imam Fauzan	Jl. Imam Bonjol no.53	1997-12-09	081345678901
+710199204072017	yeye.rizki@ui.ac.id	Yeye Rizki	Jl. Sultan Iskandar Muda no.9	1992-04-07	081456789012
+710199023122017	budiawan.santoso@ui.ac.id	Budiawan Santoso	Jl. Sultan Iskandar Muda no.9	1990-12-23	081567890123
+720199725122017	muhammad.syukur@ui.ac.id	Muhammad Syukur 	Jl. Kejayaan no.18	1997-12-25	081678901234
+720199030052017	syafaaat.syafaaat@ui.ac.id	Syafaaat	Jl. Rajawali no.54	1990-05-03	081789012345
+720198107102017	alizar.katra@ui.ac.id	Alizar Katra	Jl. Kasuari no.56	1981-07-01	081890123456
+720198023042017	ayu.azizah@ui.ac.id	Ayu Azizah	Jl. Kasuari no.56	1980-04-23	081901234567
+720198806052017	andi.azizah@ui.ac.id	Andi Azizah	Jl. Imam Bonjol no.53	1988-05-06	082012345678
+720198707042017	hepatika.zidny@ui.ac.id	Hepatika Zidny	Jl. Korban 40.000 Jiwa no.15	1987-04-07	082234567890
+720198405042017	annisa.rahma@ui.ac.id	Annisa Rahma	Jl. Perintis Kemerdekaan no.57	1984-04-05	082345678901
+720199106112017	yona.hanum@ui.ac.id	Yona Hanum	Jl. Cokroaminoto no.12	1991-06-11	082456789012
+720199302092017	fitri.arafah@ui.ac.id	Fitri Arafah	Jl. Sultan Iskandar Muda no.19	1993-02-09	082567890123
+720199218082017	faiqah.faiqah@ui.ac.id	Faiqah	Jl. Pangeran Diponegoro no.26	1992-08-18	081234567890
+730199303072017	muhammad.ahnaf@ui.ac.id	Muhammad Ahnaf	Jl. Pangeran Diponegoro no.26	1993-07-03	083123456789
+730199608082016	bayu.tri@ui.ac.id	Bayu Tri	Jl. Kemerdekaan no 10	1996-08-08	083234567890
+730199202052016	rafles.arnold@ui.ac.id	Rafles Arnold	Jl. Mawar no.78	1992-02-05	083345678901
+730198928032015	vinci.supratman@ui.ac.id	Vinci Supratman	Jl. Tulip no.12	1989-03-28	083456789012
+730199004092016	miwon.santoso@ui.ac.id	Miwon Santoso	Jl. Elang no.3	1990-09-04	083567890123
+730199427012016	sigid.nailson@ui.ac.id	Sigid Nailson	Jl. Korban 40.000 Jiwa no.5	1994-01-27	083678901234
+730199515012016	neil.armstrong@ui.ac.id	Neil Armstrong	Jl. Korban 40.000 Jiwa no.15	1995-01-15	083789012345
+730199413022016	sarah.azizah@ui.ac.id	Sarah Azizah	Jl. Kalimantan no.89	1994-02-13	083890123456
+730198930072016	heezhami.heezhami@ui.ac.id	Heezhami	Jl. Kenanga no.12	1989-07-30	083901234567
+730199008072016	ikhtisar.putri@ui.ac.id	Ikhtisar Putri	Jl. Raya no.21	1990-07-08	083012345678
+730199305062016	vikri.aulia@ui.ac.id	Vikri Aulia	Jl. Raya no.10	1993-06-05	081234567890
+740198902032015	didi.yudha@ui.ac.id	Didi Yudha	Jl. Macan no 8	1989-03-02	082345678901
+740199004052016	muhammad.bijak@ui.ac.id	Muhammad Bijak	Jl. Merpati no 7	1990-05-04	083456789012
+740199008072014	iffah.masrurah@ui.ac.id	Iffah El Masrurah	Jl. Kasuari no.7	1990-07-08	084567890123
+740199909022015	gries.yulianti@ui.ac.id	Gries Yulianti	Jl. Sawo no.12	1999-02-09	085678901234
+740199412102015	latifah.latifah@ui.ac.id	Latifah	Jl. Pondok Cina no 23	1994-10-12	086789012345
+740199004052017	awalyah.hasanah@ui.ac.id	Awalyah Hasanah	Jl. Sepeda Bersama no.9	1990-05-04	087890123456
+740199007042014	nurhidayani.nurhidayani@ui.ac.id	Nurhidayani	Jl. Sepeda Bersama no.9	1990-04-07	088901234567
+740198910092015	ainun.sakinah@ui.ac.id	Ainun Sakinah	BTN. Taman Indah no.23	1989-09-10	089012345678
+740199209112016	fatimah.estang@ui.ac.id	Fatimah Estang	BTN. Suka Indah no.12	1992-11-09	089900112233
+740199107032015	rahmah.gunawan@ui.ac.id	Rahmah Gunawan	Jl. Macan no.90	1991-03-07	089901234567
+740199308122014	permata.ningrum@ui.ac.id	Permata Ningrum	Jl. Kemerdekaan no 10	1993-12-08	089012345678
+750199312032015	dina.muliati@ui.ac.id	Dina Muliati	Jl. Singa no.23	1993-12-03	089123456789
+750198123092014	aisyah.amali@ui.ac.id	Aisyah Amali	Jl. Singa no.23	1981-09-23	089234567890
+750199212122016	farannisa.farannisa@ui.ac.id	Farannisa	Jl. Singa no.23	1992-12-12	089256789009
+750199321112015	khalisah.ulimah@ui.ac.id	Khalisah Ulimah	BTN. Taman Indah no.23	1993-11-21	086531641641
+750199507032017	muaddibah.muaddibah@ui.ac.id	Muaddibah	Jl. Macan no.90	1995-07-03	087635141264
+750198709092016	nurul.arifah@ui.ac.id	Nurul Arifah 	Jl. Singa no.23	1987-09-09	085476276323
+750199601062017	maghfirah.jannah@ui.ac.id	Maghfirah Jannah	Jl. Macan no.90	1996-06-01	087341654164
+750199017122015	radinda.dewina@ui.ac.id	Radinda Dewina	Jl. Perintis Kemerdekaan no.57	1990-07-12	083642742545
+750199214052016	andi.winanda@ui.ac.id	Andi Winanda	Jl. Perintis Kemerdekaan no.57	1992-05-14	086451745180
+750199723042016	jonathan.philip@ui.ac.id	Jonathan Philip	Jl. Cokroaminoto no.12	1997-04-23	086147164743
+750198310062015	thomas.edison@ui.ac.id	Thomas Edison	Jl. Kebangkitan no.10	1983-06-10	089684795743
+760199802032016	tayo.budiman@ui.ac.id	Tayo Budiman	Jl. Kebangkitan no.10	1998-03-02	089568406393
+760198905062016	syarfandi.syarfandi@ui.ac.id	Syarfandi	Jl. Kebangkitan no.10	1989-05-06	086451471356
+760197809092014	fachrizal.fachrizal@ui.ac.id	Fachrizal	Jl. Kebangkitan no.10	1978-09-09	088451348365
+760199303102017	muhammad.farhan@ui.ac.id	Muhammad Farhan	Jl. Raya no.10	1993-10-03	087641746328
+760199708122015	ikhsan.ikhsan@ui.ac.id	Ikhsan	Jl. Raya no.10	1997-12-08	088t41385185
+760199423122015	ulfa.ulfa@ui.ac.id	Ulfa 	Jl. Singa no.23	1994-12-23	084615842769
+760199203032014	ummi.mukminin@ui.ac.id	Ummi Mukminin	Jl. Singa no.23	1992-03-03	080954704884
+760199109102015	yulianita.sukardi@ui.ac.id	Yulianita Sukardi	Jl. Gotong Royong no.8	1991-09-10	083496380965
+760198904032016	ika.pratiwi@ui.ac.id	Ika pratiwi	Jl. Perintis Kemerdekaan no.57	1989-03-04	080352520753
+760198805062016	annisa.pratiwi@ui.ac.id	Annisa Pratiwi	Jl. Gotong Royong no.8	1988-06-05	080596830462
+760198709102017	pratiwi.safitri@ui.ac.id	Pratiwi Safitri	Jl. Kebangkitan no.11	1987-10-09	086457236592
+760198008082016	safirli.sahastripa@ui.ac.id	Safirli Sahastripa	Jl. Kebangkitan no.11	1980-08-08	085825816941
+770198706052017	husniati.husniati@ui.ac.id	Husniati	Jl. Gotong Royong no.8	1987-05-06	080235027972
+770198609032016	mentari.putri@ui.ac.id	Mentari Putri	Jl. Kebangkitan no.11	1986-03-09	082309520052
+770199302062015	aulia.yasmin@ui.ac.id	Aulia Yasmin	Jl. Perdamaian no.23	1993-02-06	089246932350
+770199901012017	fahira.fahira@ui.ac.id	Fahira	Jl. Kebangkitan no.11	1999-01-01	086028305792
+770199523042016	selpi.yudia@ui.ac.id	Selpi Yudia	Jl. Kebangkitan no.11	1995-04-23	082502502952
+770199024052015	ummul.khaerah@ui.ac.id	Ummul Khaerah	Jl. Gotong Royong no.8	1990-05-24	082485946936
+770199612122017	wahyu.bagas@ui.ac.id	Wahyu Bagas	Jl. Kebangkitan no.10	1996-12-12	082595346985
+770198509072015	riasatul.hurriyah@ui.ac.id	Riasatul Hurriyah	Jl. Perdamaian no.23	1985-07-09	082058340583
+770198402052014	amadea.novanka@ui.ac.id	Amadea Novanka	Jl. Kemiri Muka no.78	1984-02-05	082825509300
+780199203052016	ainun.eriyanti@ui.ac.id	Ainun Eriyanti	Jl. Kemiri Muka no.56	1992-03-05	082434934505
+780198208092014	finayayang.sari@ui.ac.id	Finayayang Sari	Jl. Kemiri Muka no.56	1982-09-08	082984584549
+780198301062014	maratul.jumah@ui.ac.id	Maratul Jumah	Jl. Gotong Royong no.8	1983-06-01	083894823592
+780199209032015	asep.asep@ui.ac.id	Asep 	Jl. Macan no 8	1992-09-03	083872385289
+780199320022016	bangsep.tommy@ui.ac.id	Bangsep Tommy	Jl. Macan no 8	1993-02-20	083724242898
+780199214042016	naufal.naufal@ui.ac.id	Naufal	Jl. Pertanian no.76	1992-04-12	083748114349
+780199717082017	agus.prasetyo@ui.ac.id	Agus Prasetyo	Jl. Cemara no.45	1997-08-17	083418243278
+780199506102015	poland.polar@ui.ac.id	Poland Polar	Jl. Macan no 8	1995-06-10	083845984524
+780198506052014	piglet.piglet@ui.ac.id	Piglet 	Jl. Imajinasi no.23	1985-05-06	083834535502
+780199010012015	pooh.pooh@ui.ac.id	Pooh	Jl. Imajinasi no.23	1990-01-10	084983259295
+780199320082014	elsa.frozen@ui.ac.id	Elsa Frozen	Jl. Imajinasi no.23	1993-08-20	084848572987
+790199221032016	olaf.oktaf@ui.ac.id	Olaf Oktaf	Jl. Gotong Royong no.8	1992-03-21	084824239849
+790199524052016	octopus.octopus@ui.ac.id	Octopus	Jl. Cemara no.45	1995-05-24	084284294239
+790199126092014	bane.darkknight@ui.ac.id	Bane Darkknight	Jl. Lorong Gelap no.34	1991-09-26	084859245729
+790198112112014	joker.serious@ui.ac.id	Joker So Serious	Jl. Macan no 8	1981-11-12	084652462462
+790198730122015	william.purbasari@ui.ac.id	William Purbasari	Jl. Kemiri Muka no.78	1987-12-30	084985679647
+790198829122015	demi.chocolatos@ui.ac.id	Demi Chocolatos	Jl. Raya no.10	1988-12-29	084754856385
+790199224062016	denny.sumargo@ui.ac.id	Denny Sumargo	Jl. Macan no 8	1992-06-24	084892759235
+790199308102016	fedi.nuril@ui.ac.id	Fedi Nuril	Jl. Lorong Gelap no.34	1993-10-08	085498237942
+790199002032016	ade.novita@ui.ac.id	Ade Novita	Jl. Kemiri Muka no.78	1990-02-03	085241846242
+790198920032014	lilis.lisa@ui.ac.id	Lilis Lisa	Jl. Perdamaian no.23	1989-03-20	085876241614
+790198713042015	fatimah.zahrah@ui.ac.id	Fatimah Zahrah	Jl. Perdamaian no.23	1987-04-13	085131231431
+790198512072016	alimin.alimin@ui.ac.id	Alimin	Jl. Raya no.10	1985-07-12	085986929522
+790199220052016	awaluddin.awaluddin@ui.ac.id	Awaluddin	Jl. Lorong Gelap no.34	1992-05-20	085986406209
+720199631062017	jelita.putri@ui.ac.id	Jelita Putri	Jl. Pangeran Diponegoro no.26	1996-06-30	082123456789
+770199431062016	mita.britney@ui.ac.id	Mita Britney	Jl. Perdamaian no.23	1994-06-30	082039636096
+\.
+
+
+--
+-- Data for Name: petugas; Type: TABLE DATA; Schema: bikesharing; Owner: postgres
+--
+
+COPY bikesharing.petugas (ktp, gaji) FROM stdin;
+710199508032017	2500000
+710199023122017	2500000
+720199725122017	2500000
+720199030052017	2500000
+720198107102017	2500000
+730198928032015	2500000
+730199004092016	2500000
+730199427012016	2500000
+730199305062016	2500000
+740198902032015	2500000
+740199004052016	2500000
+750199723042016	2500000
+750198310062015	2500000
+760199802032016	2500000
+760198905062016	2500000
+760197809092014	2500000
+760199303102017	2500000
+760199708122015	2500000
+770199612122017	2500000
+780199209032015	2500000
+780199320022016	2500000
+780199214042016	2500000
+780199717082017	2500000
+780199506102015	2500000
+780198506052014	2500000
+780199010012015	2500000
+780199320082014	2500000
+790199221032016	2500000
+790199524052016	2500000
+790199220052016	2500000
+\.
+
+
+--
+-- Data for Name: sepeda; Type: TABLE DATA; Schema: bikesharing; Owner: postgres
+--
+
+COPY bikesharing.sepeda (nomor, merk, jenis, status, id_stasiun, no_kartu_penyumbang) FROM stdin;
+s01	Polygon	BMX	t	st01	Ang01
+s02	Polygon	Lipat	t	st02	Ang02
+s03	Polygon	Hybrid	t	st03	Ang03
+s04	Polygon	Fixie	t	st04	Ang04
+s05	Polygon	Onthel	t	st05	Ang05
+s06	UBike	BMX	t	st06	Ang21
+s07	UBike	Lipat	t	st07	Ang22
+s08	UBike	Hybrid	t	st08	Ang23
+s09	UBike	Fixie	t	st09	Ang24
+s10	UBike	Onthel	t	st10	Ang25
+s11	RockMount 	BMX	t	st11	Ang31
+s12	RockMount 	Lipat	t	st12	Ang32
+s13	RockMount 	Hybrid	t	st13	Ang33
+s14	RockMount 	Fixie	t	st14	Ang34
+s15	RockMount 	Onthel	t	st15	Ang35
+s16	Santa Cruz	BMX	t	st16	Ang41
+s17	Santa Cruz	Lipat	t	st17	Ang42
+s18	Santa Cruz	Hybrid	t	st18	Ang43
+s19	Santa Cruz	Fixie	t	st19	Ang44
+s20	Santa Cruz	Onthel	t	st20	Ang45
+s21	Lapierre	BMX	t	st01	Ang01
+s22	Lapierre	Lipat	t	st02	Ang02
+s23	Lapierre	Hybrid	t	st03	Ang03
+s24	Lapierre	Fixie	t	st04	Ang04
+s25	Lapierre	Onthel	t	st05	Ang05
+s26	Kona	BMX	t	st06	Ang21
+s27	Kona	Lipat	t	st07	Ang22
+s28	Kona	Hybrid	t	st08	Ang23
+s29	Kona	Fixie	t	st09	Ang24
+s30	Kona	Onthel	t	st10	Ang25
+s31	Giant	BMX	t	st11	Ang31
+s32	Giant	Lipat	t	st12	Ang32
+s33	Giant	Hybrid	t	st13	Ang33
+s34	Giant	Fixie	t	st14	Ang34
+s35	Giant	Onthel	t	st15	Ang35
+s36	Cube	BMX	t	st16	Ang41
+s37	Cube	Lipat	t	st17	Ang42
+s38	Cube	Hybrid	t	st18	Ang43
+s39	Cube	Fixie	t	st19	Ang44
+s40	Cube	Onthel	t	st20	Ang45
+s41	Trek	BMX	t	st06	Ang01
+s42	Trek	Lipat	t	st07	Ang02
+s43	Trek	Hybrid	t	st08	Ang03
+s44	Trek	Fixie	t	st09	Ang04
+s45	Trek	Onthel	t	st10	Ang05
+s46	Wimcycle	BMX	t	st11	Ang21
+s47	Wimcycle	Lipat	t	st12	Ang22
+s48	Wimcycle	Hybrid	t	st13	Ang23
+s49	Wimcycle	Fixie	t	st14	Ang24
+s50	Wimcycle	Onthel	t	st15	Ang25
+s51	Ghost	BMX	t	st16	Ang31
+s52	Ghost	Lipat	t	st17	Ang32
+s53	Ghost	Hybrid	t	st18	Ang33
+s54	Ghost	Fixie	t	st19	Ang34
+s55	Ghost	Onthel	t	st20	Ang35
+\.
+
+
+--
+-- Data for Name: stasiun; Type: TABLE DATA; Schema: bikesharing; Owner: postgres
+--
+
+COPY bikesharing.stasiun (id_stasiun, alamat, lat, long, nama) FROM stdin;
+st01	Jl. Margonda Raya no.54	11.21	11.21	Stasiun Margo
+st02	Jl. Matraman Raya no.33	20.25	20.25	Stasiun Matraman
+st03	Jl. Lenteng Agung no.83	32.2999992	32.2999992	Stasiun Lena
+st04	Jl. Kasuari no.21	43.5	43.5	Stasiun Kasuari
+st05	Jl. Kemiri Muka no.35	50.7999992	50.7999992	Stasiun Kemuk
+st06	Jl. Ir. H. Juanda no.18	59.7000008	59.7000008	Stasiun Juanda
+st07	Jl. Radar Auri no.23	67.1999969	67.1999969	Stasiun Auri
+st08	Jl. Keadilan Raya no.05	75.9000015	75.9000015	Stasiun Keadilan
+st09	Jl. K.H.M. Yusuf Raya no.65	82.3000031	82.3000031	Stasiun Yusuf
+st10	Jl. H. Muslih no.25	88.4000015	88.4000015	Stasiun Muslih
+st11	Jl. M.H. Sanim no.86	96.9000015	96.9000015	Stasiun Sanim
+st12	Jl. K.H.M. Usman no.90	100.300003	100.300003	Stasiun Usman
+st13	Jl. Curug Agung no.120	114.599998	114.599998	Stasiun Cura
+st14	Jl. Krukut Raya no.10	123.699997	123.699997	Stasiun Krukut
+st15	Jl. Cemara no.54	134.600006	134.600006	Stasiun Cemara
+st16	Jl. Kancil no.114	148.300003	148.300003	Stasiun Kancil
+st17	Jl. Mawar no.45	155	155	Stasiun Mawar
+st18	Jl. Pattimura no.15	168.800003	168.800003	Stasiun Pattimura
+st19	Jl. Kebangkitan no.97	175.899994	175.899994	Stasiun Kebangkitan
+st20	Jl. Rajawali no.67	184.100006	184.100006	Stasiun Rajawali
+\.
+
+
+--
+-- Data for Name: transaksi; Type: TABLE DATA; Schema: bikesharing; Owner: postgres
+--
+
+COPY bikesharing.transaksi (no_kartu_anggota, date_time, jenis, nominal) FROM stdin;
+Ang01	2015-10-09 08:00:00	Topup	200000
+Ang02	2015-10-09 08:00:00	Topup	200000
+Ang03	2015-11-09 08:00:00	Topup	200000
+Ang04	2015-12-09 08:00:00	Topup	200000
+Ang05	2015-10-09 08:00:00	Topup	200000
+Ang06	2015-10-09 08:00:00	Topup	150000
+Ang07	2015-11-10 08:00:00	Topup	150000
+Ang08	2015-11-10 08:00:00	Topup	150000
+Ang09	2015-10-11 08:00:00	Topup	150000
+Ang10	2015-10-10 08:00:00	Topup	150000
+Ang11	2015-10-09 20:00:00	Bayar	100000
+Ang12	2015-10-09 19:00:00	Bayar	50000
+Ang13	2015-11-09 21:00:00	Bayar	150000
+Ang14	2015-12-09 19:00:00	Bayar	50000
+Ang15	2015-10-09 20:00:00	Bayar	100000
+Ang16	2015-10-09 21:00:00	Bayar	150000
+Ang17	2015-11-10 19:00:00	Bayar	50000
+Ang18	2015-11-10 21:00:00	Bayar	150000
+Ang19	2015-10-11 19:00:00	Topup	30000
+Ang20	2015-10-10 20:00:00	Topup	40000
+Ang21	2015-09-24 21:00:00	Topup	50000
+Ang22	2015-09-20 19:00:00	Topup	100000
+Ang23	2015-09-20 21:00:00	Pinjam	10000
+Ang24	2015-09-23 19:00:00	Pinjam	3000
+Ang25	2015-09-28 20:00:00	Pinjam	2000
+Ang26	2015-09-24 21:00:00	Bayar	150000
+Ang27	2015-09-20 19:00:00	Bayar	50000
+Ang28	2015-09-20 21:00:00	Bayar	150000
+Ang29	2015-09-23 19:00:00	Bayar	50000
+Ang30	2015-09-28 20:00:00	Bayar	100000
+Ang31	2015-10-11 21:00:00	Bayar	150000
+Ang32	2015-10-09 19:00:00	Bayar	50000
+Ang33	2015-10-09 17:00:00	Topup	50000
+Ang34	2015-10-09 19:00:00	Bayar	100000
+Ang35	2015-10-09 20:00:00	Bayar	150000
+Ang36	2015-10-09 19:00:00	Bayar	50000
+Ang37	2015-10-09 19:00:00	Bayar	50000
+Ang38	2015-10-09 17:00:00	Topup	50000
+Ang39	2015-10-09 19:00:00	Bayar	50000
+Ang40	2015-10-09 19:00:00	Bayar	50000
+Ang41	2015-09-17 10:00:00	Pinjam	8000
+Ang42	2015-09-17 10:00:00	Pinjam	6000
+Ang43	2015-09-17 10:00:00	Pinjam	4000
+Ang44	2015-09-17 10:00:00	Pinjam	6000
+Ang45	2015-09-17 10:00:00	Pinjam	9000
+Ang46	2015-10-09 20:00:00	Bayar	150000
+Ang47	2015-10-09 20:00:00	Bayar	150000
+Ang48	2015-09-17 17:00:00	Bayar	50000
+Ang49	2015-09-17 18:00:00	Bayar	150000
+Ang50	2015-09-17 16:00:00	Bayar	50000
+Ang51	2015-09-15 10:00:00	Pinjam	8000
+Ang52	2015-11-09 10:00:00	Pinjam	6000
+Ang53	2015-09-24 10:00:00	Pinjam	5000
+Ang54	2015-09-26 10:00:00	Pinjam	10000
+Ang55	2015-09-29 10:00:00	Topup	150000
+Ang56	2015-09-30 10:00:00	Topup	20000
+Ang57	2015-10-08 10:00:00	Topup	20000
+Ang58	2015-10-08 10:00:00	Pinjam	5000
+Ang59	2015-10-15 10:00:00	Pinjam	3000
+Ang60	2015-10-15 10:00:01	Bayar	50000
+Ang01	2015-10-09 08:30:00	Pinjam	10000
+Ang02	2015-10-09 08:30:00	Pinjam	10000
+Ang03	2015-11-09 08:30:00	Pinjam	10000
+Ang04	2015-12-09 08:30:00	Pinjam	10000
+Ang05	2015-10-09 08:30:00	Pinjam	10000
+Ang06	2015-10-09 08:30:00	Pinjam	10000
+Ang07	2015-11-10 08:30:00	Pinjam	10000
+Ang08	2015-11-10 08:30:00	Pinjam	10000
+Ang09	2015-10-11 08:30:00	Pinjam	10000
+Ang10	2015-10-10 08:30:00	Pinjam	10000
+Ang26	2015-09-24 08:30:00	Pinjam	10000
+Ang27	2015-09-20 08:30:00	Pinjam	10000
+Ang28	2015-09-20 08:30:00	Pinjam	10000
+Ang29	2015-09-23 08:30:00	Pinjam	10000
+Ang30	2015-09-28 08:30:00	Pinjam	10000
+Ang31	2015-10-11 08:30:00	Pinjam	10000
+Ang32	2015-10-09 08:30:00	Pinjam	10000
+Ang33	2015-10-09 12:30:00	Pinjam	5000
+Ang34	2015-10-09 12:30:00	Pinjam	5000
+Ang35	2015-10-09 12:30:00	Pinjam	5000
+Ang36	2015-10-09 12:30:00	Pinjam	5000
+Ang37	2015-10-09 12:30:00	Pinjam	5000
+Ang38	2015-10-09 12:30:00	Pinjam	5000
+Ang39	2015-10-09 12:30:00	Pinjam	5000
+Ang40	2015-10-09 12:30:00	Pinjam	5000
+Ang46	2015-10-09 12:30:00	Pinjam	5000
+Ang47	2015-10-09 12:30:00	Pinjam	5000
+Ang48	2015-09-17 10:30:00	Pinjam	5000
+Ang49	2015-09-17 10:30:00	Pinjam	5000
+Ang50	2015-09-17 10:30:00	Pinjam	3000
+Ang61	2015-09-17 15:30:00	Topup	50000
+Ang62	2015-09-24 11:30:00	Topup	40000
+Ang63	2015-09-24 13:30:00	Topup	45000
+Ang64	2015-09-24 11:30:00	Bayar	100000
+Ang65	2015-09-24 12:30:00	Bayar	50000
+Ang66	2015-09-24 14:30:00	Bayar	50000
+Ang67	2015-09-24 10:30:00	Bayar	50000
+Ang68	2015-09-24 13:30:00	Topup	150000
+Ang69	2015-09-24 13:30:00	Pinjam	4000
+Ang70	2015-09-24 10:30:00	Pinjam	5000
+\.
+
+
+--
+-- Data for Name: transaksi_khusus_peminjaman; Type: TABLE DATA; Schema: bikesharing; Owner: db2018044
+--
+
+COPY bikesharing.transaksi_khusus_peminjaman (no_kartu_anggota, date_time, no_kartu_peminjam, datetime_pinjam, no_sepeda, id_stasiun) FROM stdin;
+Ang01	2015-10-09 08:30:00	Ang01	2015-10-09 08:30:00	s01	st01
+Ang02	2015-10-09 08:30:00	Ang02	2015-10-09 08:30:00	s02	st02
+Ang03	2015-11-09 08:30:00	Ang03	2015-11-09 08:30:00	s03	st03
+Ang04	2015-12-09 08:30:00	Ang04	2015-12-09 08:30:00	s04	st04
+Ang05	2015-10-09 08:30:00	Ang05	2015-10-09 08:30:00	s05	st05
+Ang06	2015-10-09 08:30:00	Ang06	2015-10-09 08:30:00	s06	st06
+Ang07	2015-11-10 08:30:00	Ang07	2015-11-10 08:30:00	s07	st07
+Ang08	2015-11-10 08:30:00	Ang08	2015-11-10 08:30:00	s08	st08
+Ang09	2015-10-11 08:30:00	Ang09	2015-10-11 08:30:00	s09	st09
+Ang10	2015-10-10 08:30:00	Ang10	2015-10-10 08:30:00	s10	st10
+Ang26	2015-09-24 08:30:00	Ang26	2015-09-24 08:30:00	s11	st11
+Ang27	2015-09-20 08:30:00	Ang27	2015-09-20 08:30:00	s12	st12
+Ang28	2015-09-20 08:30:00	Ang28	2015-09-20 08:30:00	s13	st13
+Ang29	2015-09-23 08:30:00	Ang29	2015-09-23 08:30:00	s14	st14
+Ang30	2015-09-28 08:30:00	Ang30	2015-09-28 08:30:00	s15	st15
+Ang31	2015-10-11 08:30:00	Ang31	2015-10-11 08:30:00	s16	st16
+Ang32	2015-10-09 08:30:00	Ang32	2015-10-09 08:30:00	s17	st17
+Ang33	2015-10-09 12:30:00	Ang33	2015-10-09 12:30:00	s18	st18
+Ang34	2015-10-09 12:30:00	Ang34	2015-10-09 12:30:00	s19	st19
+Ang35	2015-10-09 12:30:00	Ang35	2015-10-09 12:30:00	s20	st20
+Ang36	2015-10-09 12:30:00	Ang36	2015-10-09 12:30:00	s21	st01
+Ang37	2015-10-09 12:30:00	Ang37	2015-10-09 12:30:00	s22	st02
+Ang38	2015-10-09 12:30:00	Ang38	2015-10-09 12:30:00	s23	st03
+Ang39	2015-10-09 12:30:00	Ang39	2015-10-09 12:30:00	s24	st04
+Ang40	2015-10-09 12:30:00	Ang40	2015-10-09 12:30:00	s25	st05
+Ang46	2015-10-09 12:30:00	Ang46	2015-10-09 12:30:00	s26	st06
+Ang47	2015-10-09 12:30:00	Ang47	2015-10-09 12:30:00	s27	st07
+Ang48	2015-09-17 10:30:00	Ang48	2015-09-17 10:30:00	s28	st08
+Ang49	2015-09-17 10:30:00	Ang49	2015-09-17 10:30:00	s29	st09
+Ang50	2015-09-17 10:30:00	Ang50	2015-09-17 10:30:00	s30	st10
+Ang58	2015-10-08 10:00:00	Ang58	2015-10-08 10:00:00	s08	st08
+Ang59	2015-10-15 10:00:00	Ang59	2015-10-15 10:00:00	s10	st10
+Ang51	2015-09-15 10:00:00	Ang51	2015-09-15 10:00:00	s02	st02
+Ang52	2015-11-09 10:00:00	Ang52	2015-11-09 10:00:00	s01	st01
+Ang53	2015-09-24 10:00:00	Ang53	2015-09-24 10:00:00	s04	st04
+Ang54	2015-09-26 10:00:00	Ang54	2015-09-26 10:00:00	s05	st05
+Ang41	2015-09-17 10:00:00	Ang41	2015-09-17 10:00:00	s31	st11
+Ang42	2015-09-17 10:00:00	Ang42	2015-09-17 10:00:00	s32	st12
+Ang43	2015-09-17 10:00:00	Ang43	2015-09-17 10:00:00	s33	st13
+Ang44	2015-09-17 10:00:00	Ang44	2015-09-17 10:00:00	s34	st14
+Ang45	2015-09-17 10:00:00	Ang45	2015-09-17 10:00:00	s35	st15
+\.
+
+
+--
+-- Data for Name: voucher; Type: TABLE DATA; Schema: bikesharing; Owner: postgres
+--
+
+COPY bikesharing.voucher (id_voucher, nama, kategori, nilai_poin, deskripsi, no_kartu_anggota) FROM stdin;
+v01	BIKESHARINGBL01	Belanja	50	dapatkan potongan harga hingga 20.000 di merchant yang bekerja sama dengan BIKESHARING	Ang06
+v02	BIKESHARINGBL02	Belanja	100	dapatkan potongan harga hingga 25.000 di merchant yang bekerja sama dengan BIKESHARING	Ang08
+v03	BIKESHARINGBL03	Belanja	150	dapatkan potongan harga hingga 30.000 di merchant yang bekerja sama dengan BIKESHARING	Ang09
+v04	BIKESHARINGBL04	Belanja	200	dapatkan potongan harga hingga 35.000 di merchant yang bekerja sama dengan BIKESHARING	Ang10
+v05	BIKESHARINGBL05	Belanja	250	dapatkan potongan harga hingga 40.000 di merchant yang bekerja sama dengan BIKESHARING	Ang14
+v06	BIKESHARINGBL06	Belanja	300	dapatkan potongan harga hingga 45.000 di merchant yang bekerja sama dengan BIKESHARING	Ang15
+v07	BIKESHARINGBL07	Belanja	350	dapatkan potongan harga hingga 50.000 di merchant yang bekerja sama dengan BIKESHARING	Ang16
+v08	BIKESHARINGBL08	Belanja	400	dapatkan potongan harga hingga 55.000 di merchant yang bekerja sama dengan BIKESHARING	Ang17
+v09	BIKESHARINGBL09	Belanja	450	dapatkan potongan harga hingga 60.000 di merchant yang bekerja sama dengan BIKESHARING	Ang26
+v10	BIKESHARINGBL10	Belanja	500	dapatkan potongan harga hingga 65.000 di merchant yang bekerja sama dengan BIKESHARING	Ang27
+v11	BIKESHARINGKL01	Kuliner	50	dapatkan potongan harga hingga 20.000 di merchant yang bekerja sama dengan BIKESHARING	Ang16
+v12	BIKESHARINGKL02	Kuliner	100	dapatkan potongan harga hingga 25.000 di merchant yang bekerja sama dengan BIKESHARING	Ang17
+v13	BIKESHARINGKL03	Kuliner	150	dapatkan potongan harga hingga 30.000 di merchant yang bekerja sama dengan BIKESHARING	Ang27
+v14	BIKESHARINGKL04	Kuliner	200	dapatkan potongan harga hingga 35.000 di merchant yang bekerja sama dengan BIKESHARING	Ang28
+v15	BIKESHARINGKL05	Kuliner	250	dapatkan potongan harga hingga 40.000 di merchant yang bekerja sama dengan BIKESHARING	Ang38
+v16	BIKESHARINGKL06	Kuliner	300	dapatkan potongan harga hingga 45.000 di merchant yang bekerja sama dengan BIKESHARING	Ang46
+v17	BIKESHARINGKL07	Kuliner	350	dapatkan potongan harga hingga 50.000 di merchant yang bekerja sama dengan BIKESHARING	Ang48
+v18	BIKESHARINGKL08	Kuliner	400	dapatkan potongan harga hingga 55.000 di merchant yang bekerja sama dengan BIKESHARING	Ang51
+v19	BIKESHARINGKL09	Kuliner	450	dapatkan potongan harga hingga 60.000 di merchant yang bekerja sama dengan BIKESHARING	Ang56
+v20	BIKESHARINGKL10	Kuliner	500	dapatkan potongan harga hingga 65.000 di merchant yang bekerja sama dengan BIKESHARING	Ang63
+v21	BIKESHARINGAC01	Acara	50	gratis mengikuti acara BIKESHARING sebanyak 1 kali (kecuali BIKESHARING Concert)	Ang06
+v22	BIKESHARINGAC02	Acara	100	gratis mengikuti acara BIKESHARING sebanyak 2 kali (kecuali BIKESHARING Concert)	Ang08
+v23	BIKESHARINGAC03	Acara	150	gratis mengikuti acara BIKESHARING sebanyak 3 kali (kecuali BIKESHARING Concert)	Ang09
+v24	BIKESHARINGAC04	Acara	200	gratis mengikuti acara BIKESHARING sebanyak 4 kali (kecuali BIKESHARING Concert)	Ang10
+v25	BIKESHARINGAC05	Acara	250	gratis mengikuti acara BIKESHARING sebanyak 5 kali (kecuali BIKESHARING Concert)	Ang14
+v26	BIKESHARINGAC06	Acara	300	gratis mengikuti acara BIKESHARING sebanyak 6 kali (kecuali BIKESHARING Concert)	Ang15
+v27	BIKESHARINGAC07	Acara	350	gratis mengikuti acara BIKESHARING sebanyak 7 kali (kecuali BIKESHARING Concert)	Ang16
+v28	BIKESHARINGAC08	Acara	400	gratis mengikuti acara BIKESHARING sebanyak 8 kali (kecuali BIKESHARING Concert)	Ang17
+v29	BIKESHARINGAC09	Acara	450	gratis mengikuti acara BIKESHARING sebanyak 9 kali (kecuali BIKESHARING Concert)	Ang27
+v30	BIKESHARINGAC10	Acara	500	gratis mengikuti acara BIKESHARING sebanyak 10 kali (termausk BIKESHARING Concert)	Ang28
+v31	BIKESHARINGBL11	Belanja	600	dapatkan potongan harga hingga 80.000 di merchant yang bekerja sama dengan BIKESHARING	Ang38
+v32	BIKESHARINGBL12	Belanja	650	dapatkan potongan harga hingga 85.000 di merchant yang bekerja sama dengan BIKESHARING	Ang01
+v33	BIKESHARINGBL13	Belanja	700	dapatkan potongan harga hingga 90.000 di merchant yang bekerja sama dengan BIKESHARING	Ang02
+v34	BIKESHARINGBL14	Belanja	750	dapatkan potongan harga hingga 95.000 di merchant yang bekerja sama dengan BIKESHARING	Ang03
+v35	BIKESHARINGBL15	Belanja	800	dapatkan potongan harga hingga 100.000 di merchant yang bekerja sama dengan BIKESHARING	Ang21
+v36	BIKESHARINGBL16	Belanja	850	dapatkan potongan harga hingga 150.000 di merchant yang bekerja sama dengan BIKESHARING	Ang22
+v37	BIKESHARINGBL17	Belanja	900	dapatkan potongan harga hingga 200.000 di merchant yang bekerja sama dengan BIKESHARING	Ang33
+v38	BIKESHARINGBL18	Belanja	950	dapatkan potongan harga hingga 250.000 di merchant yang bekerja sama dengan BIKESHARING	Ang34
+v39	BIKESHARINGBL19	Belanja	1000	dapatkan potongan harga hingga 300.000 di merchant yang bekerja sama dengan BIKESHARING	Ang35
+v40	BIKESHARINGBL20	Belanja	1050	dapatkan potongan harga hingga 350.000 di merchant yang bekerja sama dengan BIKESHARING	Ang44
+v41	BIKESHARINGKL11	Kuliner	600	dapatkan potongan harga hingga 80.000 di merchant yang bekerja sama dengan BIKESHARING	Ang45
+v42	BIKESHARINGKL12	Kuliner	650	dapatkan potongan harga hingga 85.000 di merchant yang bekerja sama dengan BIKESHARING	Ang21
+v43	BIKESHARINGKL13	Kuliner	700	dapatkan potongan harga hingga 90.000 di merchant yang bekerja sama dengan BIKESHARING	Ang22
+v44	BIKESHARINGKL14	Kuliner	750	dapatkan potongan harga hingga 95.000 di merchant yang bekerja sama dengan BIKESHARING	Ang23
+v45	BIKESHARINGKL15	Kuliner	800	dapatkan potongan harga hingga 100.000 di merchant yang bekerja sama dengan BIKESHARING	Ang24
+v46	BIKESHARINGKL16	Kuliner	850	dapatkan potongan harga hingga 150.000 di merchant yang bekerja sama dengan BIKESHARING	Ang31
+v47	BIKESHARINGKL17	Kuliner	900	dapatkan potongan harga hingga 200.000 di merchant yang bekerja sama dengan BIKESHARING	Ang32
+v48	BIKESHARINGKL18	Kuliner	950	dapatkan potongan harga hingga 250.000 di merchant yang bekerja sama dengan BIKESHARING	Ang33
+v49	BIKESHARINGKL19	Kuliner	1000	dapatkan potongan harga hingga 300.000 di merchant yang bekerja sama dengan BIKESHARING	Ang41
+v50	BIKESHARINGKL20	Kuliner	1050	dapatkan potongan harga hingga 350.000 di merchant yang bekerja sama dengan BIKESHARING	Ang42
+v51	BIKESHARINGAC11	Acara	600	gratis mengikuti acara BIKESHARING sebanyak 1 kali (termausk BIKESHARING Concert)	Ang43
+v52	BIKESHARINGAC12	Acara	650	gratis mengikuti acara BIKESHARING sebanyak 2 kali (termausk BIKESHARING Concert)	Ang02
+v53	BIKESHARINGAC13	Acara	700	gratis mengikuti acara BIKESHARING sebanyak 3 kali (termausk BIKESHARING Concert)	Ang03
+v54	BIKESHARINGAC14	Acara	750	gratis mengikuti acara BIKESHARING sebanyak 4 kali (termausk BIKESHARING Concert)	Ang21
+v55	BIKESHARINGAC15	Acara	800	gratis mengikuti acara BIKESHARING sebanyak 5 kali (termausk BIKESHARING Concert)	Ang22
+v56	BIKESHARINGAC16	Acara	850	gratis mengikuti acara BIKESHARING sebanyak 6 kali (termausk BIKESHARING Concert)	Ang33
+v57	BIKESHARINGAC17	Acara	900	gratis mengikuti acara BIKESHARING sebanyak 7 kali (termausk BIKESHARING Concert)	Ang31
+v58	BIKESHARINGAC18	Acara	950	gratis mengikuti acara BIKESHARING sebanyak 8 kali (termausk BIKESHARING Concert)	Ang32
+v59	BIKESHARINGAC19	Acara	1000	gratis mengikuti acara BIKESHARING sebanyak 9 kali (termausk BIKESHARING Concert)	Ang33
+v60	BIKESHARINGAC20	Acara	1050	gratis mengikuti acara BIKESHARING sebanyak 10 kali (termausk BIKESHARING Concert)	Ang41
+\.
+
+
+--
+-- Name: acara acara_pkey; Type: CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.acara
+    ADD CONSTRAINT acara_pkey PRIMARY KEY (id_acara);
+
+
+--
+-- Name: acara_stasiun acara_stasiun_pkey; Type: CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.acara_stasiun
+    ADD CONSTRAINT acara_stasiun_pkey PRIMARY KEY (id_stasiun, id_acara);
+
+
+--
+-- Name: anggota anggota_pkey; Type: CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.anggota
+    ADD CONSTRAINT anggota_pkey PRIMARY KEY (no_kartu);
+
+
+--
+-- Name: laporan laporan_pkey; Type: CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.laporan
+    ADD CONSTRAINT laporan_pkey PRIMARY KEY (id_laporan, no_kartu_anggota, datetime_pinjam, nomor_sepeda, id_stasiun);
+
+
+--
+-- Name: peminjaman peminjaman_pkey; Type: CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.peminjaman
+    ADD CONSTRAINT peminjaman_pkey PRIMARY KEY (no_kartu_anggota, datetime_pinjam, nomor_sepeda, id_stasiun);
+
+
+--
+-- Name: penugasan penugasan_pkey; Type: CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.penugasan
+    ADD CONSTRAINT penugasan_pkey PRIMARY KEY (ktp, start_datetime, id_stasiun);
+
+
+--
+-- Name: person person_email_key; Type: CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.person
+    ADD CONSTRAINT person_email_key UNIQUE (email);
+
+
+--
+-- Name: person person_pkey; Type: CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.person
+    ADD CONSTRAINT person_pkey PRIMARY KEY (ktp);
+
+
+--
+-- Name: petugas petugas_pkey; Type: CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.petugas
+    ADD CONSTRAINT petugas_pkey PRIMARY KEY (ktp);
+
+
+--
+-- Name: sepeda sepeda_pkey; Type: CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.sepeda
+    ADD CONSTRAINT sepeda_pkey PRIMARY KEY (nomor);
+
+
+--
+-- Name: stasiun stasiun_pkey; Type: CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.stasiun
+    ADD CONSTRAINT stasiun_pkey PRIMARY KEY (id_stasiun);
+
+
+--
+-- Name: transaksi_khusus_peminjaman transaksi_khusus_peminjaman_pkey; Type: CONSTRAINT; Schema: bikesharing; Owner: db2018044
+--
+
+ALTER TABLE ONLY bikesharing.transaksi_khusus_peminjaman
+    ADD CONSTRAINT transaksi_khusus_peminjaman_pkey PRIMARY KEY (no_kartu_anggota, date_time);
+
+
+--
+-- Name: transaksi transaksi_pkey; Type: CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.transaksi
+    ADD CONSTRAINT transaksi_pkey PRIMARY KEY (no_kartu_anggota, date_time);
+
+
+--
+-- Name: voucher voucher_pkey; Type: CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.voucher
+    ADD CONSTRAINT voucher_pkey PRIMARY KEY (id_voucher);
+
+
+--
+-- Name: peminjaman t_jum_denda; Type: TRIGGER; Schema: bikesharing; Owner: postgres
+--
+
+CREATE TRIGGER t_jum_denda AFTER UPDATE ON bikesharing.peminjaman FOR EACH ROW EXECUTE PROCEDURE bikesharing.jumlah_denda();
+
+
+--
+-- Name: peminjaman t_lap; Type: TRIGGER; Schema: bikesharing; Owner: postgres
+--
+
+CREATE TRIGGER t_lap AFTER UPDATE ON bikesharing.peminjaman FOR EACH ROW EXECUTE PROCEDURE bikesharing.buat_laporan();
+
+
+--
+-- Name: peminjaman t_tkp; Type: TRIGGER; Schema: bikesharing; Owner: postgres
+--
+
+CREATE TRIGGER t_tkp AFTER UPDATE ON bikesharing.peminjaman FOR EACH ROW EXECUTE PROCEDURE bikesharing.buat_tp();
+
+
+--
+-- Name: acara_stasiun acara_stasiun_id_acara_fkey; Type: FK CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.acara_stasiun
+    ADD CONSTRAINT acara_stasiun_id_acara_fkey FOREIGN KEY (id_acara) REFERENCES bikesharing.acara(id_acara) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: acara_stasiun acara_stasiun_id_stasiun_fkey; Type: FK CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.acara_stasiun
+    ADD CONSTRAINT acara_stasiun_id_stasiun_fkey FOREIGN KEY (id_stasiun) REFERENCES bikesharing.stasiun(id_stasiun) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: anggota anggota_ktp_fkey; Type: FK CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.anggota
+    ADD CONSTRAINT anggota_ktp_fkey FOREIGN KEY (ktp) REFERENCES bikesharing.person(ktp) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: laporan laporan_no_kartu_anggota_fkey; Type: FK CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.laporan
+    ADD CONSTRAINT laporan_no_kartu_anggota_fkey FOREIGN KEY (no_kartu_anggota, datetime_pinjam, nomor_sepeda, id_stasiun) REFERENCES bikesharing.peminjaman(no_kartu_anggota, datetime_pinjam, nomor_sepeda, id_stasiun) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: peminjaman peminjaman_id_stasiun_fkey; Type: FK CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.peminjaman
+    ADD CONSTRAINT peminjaman_id_stasiun_fkey FOREIGN KEY (id_stasiun) REFERENCES bikesharing.stasiun(id_stasiun) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: peminjaman peminjaman_no_kartu_anggota_fkey; Type: FK CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.peminjaman
+    ADD CONSTRAINT peminjaman_no_kartu_anggota_fkey FOREIGN KEY (no_kartu_anggota) REFERENCES bikesharing.anggota(no_kartu) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: peminjaman peminjaman_nomor_sepeda_fkey; Type: FK CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.peminjaman
+    ADD CONSTRAINT peminjaman_nomor_sepeda_fkey FOREIGN KEY (nomor_sepeda) REFERENCES bikesharing.sepeda(nomor) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: penugasan penugasan_id_stasiun_fkey; Type: FK CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.penugasan
+    ADD CONSTRAINT penugasan_id_stasiun_fkey FOREIGN KEY (id_stasiun) REFERENCES bikesharing.stasiun(id_stasiun) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: penugasan penugasan_ktp_fkey; Type: FK CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.penugasan
+    ADD CONSTRAINT penugasan_ktp_fkey FOREIGN KEY (ktp) REFERENCES bikesharing.petugas(ktp) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: petugas petugas_ktp_fkey; Type: FK CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.petugas
+    ADD CONSTRAINT petugas_ktp_fkey FOREIGN KEY (ktp) REFERENCES bikesharing.person(ktp) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: sepeda sepeda_id_stasiun_fkey; Type: FK CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.sepeda
+    ADD CONSTRAINT sepeda_id_stasiun_fkey FOREIGN KEY (id_stasiun) REFERENCES bikesharing.stasiun(id_stasiun) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: sepeda sepeda_no_kartu_penyumbang_fkey; Type: FK CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.sepeda
+    ADD CONSTRAINT sepeda_no_kartu_penyumbang_fkey FOREIGN KEY (no_kartu_penyumbang) REFERENCES bikesharing.anggota(no_kartu) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: transaksi_khusus_peminjaman transaksi_khusus_peminjaman_no_kartu_anggota_fkey; Type: FK CONSTRAINT; Schema: bikesharing; Owner: db2018044
+--
+
+ALTER TABLE ONLY bikesharing.transaksi_khusus_peminjaman
+    ADD CONSTRAINT transaksi_khusus_peminjaman_no_kartu_anggota_fkey FOREIGN KEY (no_kartu_anggota, date_time) REFERENCES bikesharing.transaksi(no_kartu_anggota, date_time) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: transaksi_khusus_peminjaman transaksi_khusus_peminjaman_no_kartu_peminjam_fkey; Type: FK CONSTRAINT; Schema: bikesharing; Owner: db2018044
+--
+
+ALTER TABLE ONLY bikesharing.transaksi_khusus_peminjaman
+    ADD CONSTRAINT transaksi_khusus_peminjaman_no_kartu_peminjam_fkey FOREIGN KEY (no_kartu_peminjam, datetime_pinjam, no_sepeda, id_stasiun) REFERENCES bikesharing.peminjaman(no_kartu_anggota, datetime_pinjam, nomor_sepeda, id_stasiun) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: transaksi transaksi_no_kartu_anggota_fkey; Type: FK CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.transaksi
+    ADD CONSTRAINT transaksi_no_kartu_anggota_fkey FOREIGN KEY (no_kartu_anggota) REFERENCES bikesharing.anggota(no_kartu);
+
+
+--
+-- Name: voucher voucher_no_kartu_anggota_fkey; Type: FK CONSTRAINT; Schema: bikesharing; Owner: postgres
+--
+
+ALTER TABLE ONLY bikesharing.voucher
+    ADD CONSTRAINT voucher_no_kartu_anggota_fkey FOREIGN KEY (no_kartu_anggota) REFERENCES bikesharing.anggota(no_kartu) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- PostgreSQL database dump complete
+--
+
